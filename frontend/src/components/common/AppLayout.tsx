@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Send, GitBranch, FileText, BarChart3,
   LogOut, ChevronLeft, ChevronRight, Mail, Settings
 } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
