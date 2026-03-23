@@ -179,8 +179,15 @@ CREATE TABLE sequence_steps (
     branch_label    VARCHAR(50),  -- 'positive', 'negative', 'default'
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(sequence_id, step_order, COALESCE(parent_step_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(branch_label, '__none__'))
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_sequence_steps_unique
+ON sequence_steps (
+    sequence_id,
+    step_order,
+    COALESCE(parent_step_id, '00000000-0000-0000-0000-000000000000'::uuid),
+    COALESCE(branch_label, '__none__')
 );
 
 CREATE INDEX idx_sequence_steps_sequence ON sequence_steps(sequence_id);
