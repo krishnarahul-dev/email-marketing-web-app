@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const api: AxiosInstance = axios.create({
   baseURL: `${API_BASE}/api`,
@@ -61,6 +61,8 @@ export const campaignsApi = {
   delete: (id: string) => api.delete(`/campaigns/${id}`),
   addRecipients: (id: string, data: any) => api.post(`/campaigns/${id}/recipients`, data),
   send: (id: string) => api.post(`/campaigns/${id}/send`),
+  pause: (id: string) => api.post(`/campaigns/${id}/pause`),
+  reset: (id: string) => api.post(`/campaigns/${id}/reset`),
   stats: (id: string) => api.get(`/campaigns/${id}/stats`),
 };
 
