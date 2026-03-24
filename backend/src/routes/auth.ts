@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { query, transaction } from '../config/database';
 import { config } from '../config';
 import { authMiddleware } from '../middleware/auth';
@@ -45,16 +45,23 @@ router.post(
         return { user: u.rows[0], workspace };
       });
 
-      const token = jwt.sign(
-        {
-          userId: result.user.id,
-          workspaceId: result.workspace.id,
-          email: result.user.email,
-          role: result.user.role,
-        },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
-      );
+      const jwtSecret: Secret = String(config.jwt.secret);
+const jwtOptions: SignOptions = {
+  expiresIn: Number.isNaN(Number(config.jwt.expiresIn))
+    ? (String(config.jwt.expiresIn) as SignOptions['expiresIn'])
+    : Number(config.jwt.expiresIn),
+};
+
+const token = jwt.sign(
+  {
+    userId: result.user.id,
+    workspaceId: result.workspace.id,
+    email: result.user.email,
+    role: result.user.role,
+  },
+  jwtSecret,
+  jwtOptions
+);
 
       res.status(201).json({
         token,
@@ -98,16 +105,23 @@ router.post(
 
       await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
 
-      const token = jwt.sign(
-        {
-          userId: user.id,
-          workspaceId: user.workspace_id,
-          email: user.email,
-          role: user.role,
-        },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
-      );
+     const jwtSecret: Secret = String(config.jwt.secret);
+const jwtOptions: SignOptions = {
+  expiresIn: Number.isNaN(Number(config.jwt.expiresIn))
+    ? (String(config.jwt.expiresIn) as SignOptions['expiresIn'])
+    : Number(config.jwt.expiresIn),
+};
+
+const token = jwt.sign(
+  {
+    userId: user.id,
+    workspaceId: user.workspace_id,
+    email: user.email,
+    role: user.role,
+  },
+  jwtSecret,
+  jwtOptions
+);
 
       let workspace = null;
       if (user.workspace_id) {
