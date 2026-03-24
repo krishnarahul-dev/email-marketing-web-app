@@ -1,6 +1,9 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  '';
 
 const api: AxiosInstance = axios.create({
   baseURL: `${API_BASE}/api`,
@@ -19,13 +22,17 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const isLoginPage = window.location.pathname === '/login';
+
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
+
+      if (!isLoginPage) {
         window.location.href = '/login';
       }
     }
+
     return Promise.reject(error);
   }
 );
