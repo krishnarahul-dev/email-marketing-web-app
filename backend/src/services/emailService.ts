@@ -43,7 +43,7 @@ const rateLimiter = new RateLimiter(config.email.rateLimitPerSecond);
 const smtpOptions: SMTPTransport.Options = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
-  secure: false,
+  secure: true,
   connectionTimeout: 30000,
   greetingTimeout: 30000,
   socketTimeout: 30000,
