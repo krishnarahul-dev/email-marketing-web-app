@@ -154,33 +154,40 @@ router.post('/:id/recipients', async (req: Request, res: Response) => {
       ids = contactRes.rows.map((r: any) => r.id);
     }
 
-    // Update recipient count
-    await query('UPDATE campaigns SET total_recipients = $1 WHERE id = $2', [ids.length, campaignId]);
+    if (ids.length === 0) {
+      res.status(400).json({ error: 'No eligible contacts found to add' });
+      return;
+    }
 
-    // Store recipient list in metadata (for campaign worker)
-    await query(
-      `UPDATE campaigns SET updated_at = NOW() WHERE id = $1`,
-      [campaignId]
-    );
-
-    // Create email log placeholders
+    // Get workspace from email
     const ws = await query('SELECT ses_from_email FROM workspaces WHERE id = $1', [wsId]);
     const fromEmail = ws.rows[0]?.ses_from_email || 'noreply@example.com';
 
     let created = 0;
     await transaction(async (client) => {
+      // Remove any previously queued (unsent) logs for this campaign to prevent duplicates
+      await client.query(
+        "DELETE FROM email_logs WHERE campaign_id = $1 AND status = 'queued'",
+        [campaignId]
+      );
+
       for (const cid of ids) {
         const contact = await client.query('SELECT email FROM contacts WHERE id = $1', [cid]);
         if (contact.rows.length === 0) continue;
 
         await client.query(
           `INSERT INTO email_logs (workspace_id, contact_id, campaign_id, from_email, to_email, status)
-           VALUES ($1,$2,$3,$4,$5,'queued')
-           ON CONFLICT DO NOTHING`,
+           VALUES ($1,$2,$3,$4,$5,'queued')`,
           [wsId, cid, campaignId, fromEmail, contact.rows[0].email]
         );
         created++;
       }
+
+      // Update campaign recipient count
+      await client.query(
+        'UPDATE campaigns SET total_recipients = $1, updated_at = NOW() WHERE id = $2',
+        [created, campaignId]
+      );
     });
 
     res.json({ recipients: created });
