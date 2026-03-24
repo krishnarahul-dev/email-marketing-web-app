@@ -1,10 +1,6 @@
-import dns from 'node:dns';
-import nodemailer from 'nodemailer';
-import SMTPTransport from 'nodemailer/lib/smtp-transport';
+import { Resend } from 'resend';
 import { config } from '../config';
 import { SendEmailParams } from '../types';
-
-dns.setDefaultResultOrder('ipv4first');
 
 // Token-bucket rate limiter
 class RateLimiter {
@@ -40,31 +36,18 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter(config.email.rateLimitPerSecond);
 
-const smtpOptions: SMTPTransport.Options = {
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: true,
-  connectionTimeout: 30000,
-  greetingTimeout: 30000,
-  socketTimeout: 30000,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-};
-
-const transporter = nodemailer.createTransport(smtpOptions);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendEmail(params: SendEmailParams): Promise<string> {
   await rateLimiter.acquire();
 
-  const info = await transporter.sendMail({
+  const response = await resend.emails.send({
     from: params.fromName ? `${params.fromName} <${params.from}>` : params.from,
-    to: params.to,
+    to: [params.to],
     subject: params.subject,
     html: params.htmlBody,
     text: params.textBody,
-    replyTo: params.replyTo,
+    replyTo: params.replyTo ? [params.replyTo] : undefined,
     headers: {
       ...(params.configurationSet
         ? { 'X-Configuration-Set': params.configurationSet }
@@ -78,11 +61,15 @@ export async function sendEmail(params: SendEmailParams): Promise<string> {
     },
   });
 
-  if (!info.messageId) {
-    throw new Error('SMTP did not return a messageId');
+  if (response.error) {
+    throw new Error(response.error.message || 'Resend send failed');
   }
 
-  return info.messageId;
+  if (!response.data?.id) {
+    throw new Error('Resend did not return a messageId');
+  }
+
+  return response.data.id;
 }
 
 export async function sendEmailWithRetry(
