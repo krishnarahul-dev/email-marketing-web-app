@@ -1,6 +1,10 @@
+import dns from 'node:dns';
 import nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { config } from '../config';
 import { SendEmailParams } from '../types';
+
+dns.setDefaultResultOrder('ipv4first');
 
 // Token-bucket rate limiter
 class RateLimiter {
@@ -36,15 +40,20 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter(config.email.rateLimitPerSecond);
 
-const transporter = nodemailer.createTransport({
+const smtpOptions: SMTPTransport.Options = {
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
   secure: false,
+  connectionTimeout: 30000,
+  greetingTimeout: 30000,
+  socketTimeout: 30000,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-});
+};
+
+const transporter = nodemailer.createTransport(smtpOptions);
 
 export async function sendEmail(params: SendEmailParams): Promise<string> {
   await rateLimiter.acquire();
