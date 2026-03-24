@@ -4,7 +4,6 @@ import { authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validation';
 import { parsePagination } from '../utils/pagination';
 import { scheduleCampaignSend } from '../services/queueService';
-import { config } from '../config';
 import { Campaign } from '../types';
 
 const router = Router();
@@ -291,8 +290,8 @@ router.post('/:id/recipients', async (req: Request, res: Response) => {
 // ════════════════════════════════════════════════════════════
 router.post('/:id/send', async (req: Request, res: Response) => {
   try {
-    const wsId = req.user!.workspaceId;
-    const campaignId = req.params.id;
+const wsId = String(req.user!.workspaceId);
+const campaignId = String(req.params.id);
 
     const campaign = await query<Campaign>(
       "SELECT * FROM campaigns WHERE id = $1 AND workspace_id = $2 AND status IN ('draft','paused')",
@@ -319,10 +318,16 @@ router.post('/:id/send', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check SES credentials exist
-    if (!config.ses.accessKeyId || config.ses.accessKeyId === 'AKIAIOSFODNN7EXAMPLE' || config.ses.accessKeyId.startsWith('AKIAXXXXXXXXX')) {
+    // Check SMTP credentials exist
+    if (
+      !process.env.SMTP_HOST ||
+      !process.env.SMTP_PORT ||
+      !process.env.SMTP_USER ||
+      !process.env.SMTP_PASS ||
+      !process.env.SMTP_FROM
+    ) {
       res.status(400).json({
-        error: 'AWS SES credentials are not configured. Set SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY in your environment variables with real AWS credentials.',
+        error: 'SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM in your environment variables.',
       });
       return;
     }

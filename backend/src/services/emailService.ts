@@ -1,14 +1,6 @@
-import { SESClient, SendEmailCommand, SendEmailCommandInput } from '@aws-sdk/client-ses';
+import nodemailer from 'nodemailer';
 import { config } from '../config';
 import { SendEmailParams } from '../types';
-
-const sesClient = new SESClient({
-  region: config.ses.region,
-  credentials: {
-    accessKeyId: config.ses.accessKeyId,
-    secretAccessKey: config.ses.secretAccessKey,
-  },
-});
 
 // Token-bucket rate limiter
 class RateLimiter {
@@ -27,7 +19,7 @@ class RateLimiter {
   async acquire(): Promise<void> {
     this.refill();
     if (this.tokens < 1) {
-      const waitTime = Math.ceil((1 - this.tokens) / this.refillRate * 1000);
+      const waitTime = Math.ceil(((1 - this.tokens) / this.refillRate) * 1000);
       await new Promise((resolve) => setTimeout(resolve, waitTime));
       this.refill();
     }
@@ -44,49 +36,44 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter(config.email.rateLimitPerSecond);
 
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
 export async function sendEmail(params: SendEmailParams): Promise<string> {
   await rateLimiter.acquire();
 
-  const input: SendEmailCommandInput = {
-    Source: params.fromName ? `${params.fromName} <${params.from}>` : params.from,
-    Destination: {
-      ToAddresses: [params.to],
+  const info = await transporter.sendMail({
+    from: params.fromName ? `${params.fromName} <${params.from}>` : params.from,
+    to: params.to,
+    subject: params.subject,
+    html: params.htmlBody,
+    text: params.textBody,
+    replyTo: params.replyTo,
+    headers: {
+      ...(params.configurationSet
+        ? { 'X-Configuration-Set': params.configurationSet }
+        : {}),
+      ...Object.fromEntries(
+        Object.entries(params.tags || {}).map(([key, value]) => [
+          `X-Tag-${key}`,
+          String(value),
+        ])
+      ),
     },
-    Message: {
-      Subject: {
-        Data: params.subject,
-        Charset: 'UTF-8',
-      },
-      Body: {
-        Html: {
-          Data: params.htmlBody,
-          Charset: 'UTF-8',
-        },
-        ...(params.textBody && {
-          Text: {
-            Data: params.textBody,
-            Charset: 'UTF-8',
-          },
-        }),
-      },
-    },
-    ...(params.configurationSet && {
-      ConfigurationSetName: params.configurationSet,
-    }),
-    ...(params.replyTo && {
-      ReplyToAddresses: [params.replyTo],
-    }),
-    Tags: Object.entries(params.tags || {}).map(([Name, Value]) => ({ Name, Value })),
-  };
+  });
 
-  const command = new SendEmailCommand(input);
-  const response = await sesClient.send(command);
-
-  if (!response.MessageId) {
-    throw new Error('SES did not return a MessageId');
+  if (!info.messageId) {
+    throw new Error('SMTP did not return a messageId');
   }
 
-  return response.MessageId;
+  return info.messageId;
 }
 
 export async function sendEmailWithRetry(
@@ -101,18 +88,12 @@ export async function sendEmailWithRetry(
     } catch (error: any) {
       lastError = error;
 
-      // Don't retry on validation errors or permanent failures
-      if (
-        error.name === 'MessageRejected' ||
-        error.name === 'MailFromDomainNotVerifiedException' ||
-        error.Code === 'InvalidParameterValue'
-      ) {
-        throw error;
-      }
-
       if (attempt < maxRetries) {
         const delay = config.email.retryDelay * Math.pow(2, attempt);
-        console.warn(`Email send attempt ${attempt + 1} failed, retrying in ${delay}ms:`, error.message);
+        console.warn(
+          `Email send attempt ${attempt + 1} failed, retrying in ${delay}ms:`,
+          error.message
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
