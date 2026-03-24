@@ -213,8 +213,8 @@ router.delete('/:id/steps/:stepId', async (req: Request, res: Response) => {
 router.post('/:id/enroll', async (req: Request, res: Response) => {
   try {
     const { contactIds } = req.body;
-    const wsId = req.user!.workspaceId;
-    const seqId = req.params.id;
+    const wsId = String(req.user!.workspaceId);
+const seqId = String(req.params.id);
 
     // Verify sequence is active
     const seq = await query("SELECT id FROM sequences WHERE id = $1 AND workspace_id = $2 AND status = 'active'", [seqId, wsId]);
@@ -239,7 +239,8 @@ router.post('/:id/enroll', async (req: Request, res: Response) => {
 // Pause/cancel enrollment
 router.post('/:id/enrollments/:enrollmentId/cancel', async (req: Request, res: Response) => {
   try {
-    await cancelEnrollmentJobs(req.params.enrollmentId);
+    const enrollmentId = String(req.params.enrollmentId);
+await cancelEnrollmentJobs(enrollmentId);
     await query(
       "UPDATE sequence_enrollments SET status = 'cancelled' WHERE id = $1 AND sequence_id = $2",
       [req.params.enrollmentId, req.params.id]
