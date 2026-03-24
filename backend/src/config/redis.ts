@@ -1,11 +1,7 @@
 import { Redis } from 'ioredis';
-import { config } from './index';
 
-export const redisConnection = new Redis({
-  host: config.redis.host,
-  port: config.redis.port,
-  password: config.redis.password,
-  maxRetriesPerRequest: null, // Required for BullMQ
+export const redisConnection = new Redis(process.env.REDIS_URL!, {
+  maxRetriesPerRequest: null,
   enableReadyCheck: false,
 });
 
@@ -18,10 +14,7 @@ redisConnection.on('connect', () => {
 });
 
 export function createRedisConnection(): Redis {
-  return new Redis({
-    host: config.redis.host,
-    port: config.redis.port,
-    password: config.redis.password,
+  return new Redis(process.env.REDIS_URL!, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
   });
