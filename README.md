@@ -1,4 +1,4 @@
-# MailForge — Cold Email Outreach Platform
+# Cflow Mail — Cold Email Outreach Platform
 
 Production-ready email marketing and sequencing platform with AI-powered reply classification, visual sequence builder, drag-drop template editor, and full deliverability compliance.
 

@@ -36,7 +36,7 @@ export default function AppLayout() {
           <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
             <Mail className="w-4 h-4" />
           </div>
-          {!collapsed && <span className="font-semibold text-base tracking-tight">MailForge</span>}
+          {!collapsed && <span className="font-semibold text-base tracking-tight">Cflow Mail</span>}
         </div>
 
         {/* Nav */}

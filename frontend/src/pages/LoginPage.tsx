@@ -32,7 +32,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-500 mb-4">
             <Mail className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">MailForge</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Cflow Mail</h1>
           <p className="text-surface-400 mt-1">Email outreach, automated</p>
         </div>
 
