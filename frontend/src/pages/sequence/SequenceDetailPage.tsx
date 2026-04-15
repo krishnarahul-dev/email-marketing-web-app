@@ -201,22 +201,22 @@ export default function SequenceDetailPage() {
 
           {/* ─── Tabs ─────────────────────────────────── */}
           <div className="flex gap-1 -mb-px">
-            {TABS.map((tab) => (
-              <NavLink
-                key={tab.key}
-                to={tab.key}
-                className={({ isActive }) =>
-                  `px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    isActive
-                      ? 'border-surface-900 text-surface-900'
-                      : 'border-transparent text-surface-500 hover:text-surface-900'
-                  }`
-                }
-              >
-                {tab.label}
-              </NavLink>
-            ))}
-          </div>
+  {TABS.map((tab) => (
+    <NavLink
+      key={tab.key}
+      to={`/sequences/${sequence.id}/${tab.key}`}
+      className={({ isActive }) =>
+        `px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+          isActive
+            ? 'border-surface-900 text-surface-900'
+            : 'border-transparent text-surface-500 hover:text-surface-900'
+        }`
+      }
+    >
+      {tab.label}
+    </NavLink>
+  ))}
+</div>
         </div>
       </header>
 
