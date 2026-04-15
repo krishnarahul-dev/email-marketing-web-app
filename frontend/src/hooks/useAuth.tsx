@@ -36,11 +36,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (token) {
-      refreshUser().finally(() => setLoading(false));
+      // Race auth check against 5-second timeout — don't let a dead backend hang the page
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, 5000));
+      Promise.race([refreshUser(), timeout]).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [token, refreshUser]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     const res = await authApi.login(email, password);

@@ -15,6 +15,13 @@ import templateRoutes from './routes/templates';
 import webhookRoutes from './routes/webhooks';
 import trackingRoutes from './routes/tracking';
 import analyticsRoutes from './routes/analytics';
+import tasksRoutes from './routes/tasks';
+import snippetsRoutes from './routes/snippets';
+import sequenceTemplatesRoutes from './routes/sequenceTemplates';
+import abVariantsRoutes from './routes/abVariants';
+import activityRoutes from './routes/activity';
+import schedulesRoutes from './routes/schedules';
+import mailboxesRoutes from './routes/mailboxes';
 
 const app = express();
 
@@ -76,6 +83,13 @@ app.use('/api/campaigns', apiLimiter, campaignRoutes);
 app.use('/api/sequences', apiLimiter, sequenceRoutes);
 app.use('/api/templates', apiLimiter, templateRoutes);
 app.use('/api/analytics', apiLimiter, analyticsRoutes);
+app.use('/api/tasks', apiLimiter, tasksRoutes);
+app.use('/api/snippets', apiLimiter, snippetsRoutes);
+app.use('/api/sequence-templates', apiLimiter, sequenceTemplatesRoutes);
+app.use('/api/ab-variants', apiLimiter, abVariantsRoutes);
+app.use('/api/activity', apiLimiter, activityRoutes);
+app.use('/api/schedules', apiLimiter, schedulesRoutes);
+app.use('/api/mailboxes', apiLimiter, mailboxesRoutes);
 
 // Webhooks (no rate limit - external services)
 app.use('/api/webhooks', webhookRoutes);

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Send, GitBranch, FileText, BarChart3,
-  LogOut, ChevronLeft, ChevronRight, Mail, Settings
+  LogOut, ChevronLeft, ChevronRight, Mail, Settings, Inbox, CheckSquare, Bookmark
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -12,7 +12,10 @@ const NAV_ITEMS = [
   { to: '/campaigns', label: 'Campaigns', icon: Send },
   { to: '/sequences', label: 'Sequences', icon: GitBranch },
   { to: '/templates', label: 'Templates', icon: FileText },
+  { to: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/snippets', label: 'Snippets', icon: Bookmark },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/mailboxes', label: 'Email Sending', icon: Inbox },
 ];
 
 export default function AppLayout() {

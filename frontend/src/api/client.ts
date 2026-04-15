@@ -83,9 +83,51 @@ export const sequencesApi = {
   addStep: (id: string, data: any) => api.post(`/sequences/${id}/steps`, data),
   updateStep: (id: string, stepId: string, data: any) => api.put(`/sequences/${id}/steps/${stepId}`, data),
   deleteStep: (id: string, stepId: string) => api.delete(`/sequences/${id}/steps/${stepId}`),
+  reorderSteps: (id: string, stepIds: string[]) => api.post(`/sequences/${id}/steps/reorder`, { stepIds }),
   enroll: (id: string, contactIds: string[]) => api.post(`/sequences/${id}/enroll`, { contactIds }),
+  bulkEnroll: (id: string, contactIds: string[]) => api.post(`/sequences/${id}/enroll`, { contactIds }),
   cancelEnrollment: (id: string, enrollmentId: string) => api.post(`/sequences/${id}/enrollments/${enrollmentId}/cancel`),
+  pauseEnrollment: (id: string, enrollmentId: string) => api.post(`/sequences/${id}/enrollments/${enrollmentId}/pause`),
+  resumeEnrollment: (id: string, enrollmentId: string) => api.post(`/sequences/${id}/enrollments/${enrollmentId}/resume`),
   listEnrollments: (id: string, params?: Record<string, any>) => api.get(`/sequences/${id}/enrollments`, { params }),
+  // New endpoints for sequence detail page
+  contacts: (id: string, params?: Record<string, any>) => api.get(`/sequences/${id}/contacts`, { params }),
+  contactStatusCounts: (id: string) => api.get(`/sequences/${id}/contacts/counts`),
+  emails: (id: string, params?: Record<string, any>) => api.get(`/sequences/${id}/emails`, { params }),
+  emailStatusCounts: (id: string) => api.get(`/sequences/${id}/emails/counts`),
+  activity: (id: string, params?: Record<string, any>) => api.get(`/sequences/${id}/activity`, { params }),
+  report: (id: string) => api.get(`/sequences/${id}/report`),
+  duplicate: (id: string, name?: string) => api.post(`/sequences/${id}/duplicate`, { name }),
+  toggleActive: (id: string, active: boolean) => api.put(`/sequences/${id}`, { status: active ? 'active' : 'paused' }),
+};
+
+// Schedules (per-weekday send windows)
+export const schedulesApi = {
+  list: () => api.get('/schedules'),
+  get: (id: string) => api.get(`/schedules/${id}`),
+  create: (data: any) => api.post('/schedules', data),
+  update: (id: string, data: any) => api.put(`/schedules/${id}`, data),
+  delete: (id: string) => api.delete(`/schedules/${id}`),
+  setDefault: (id: string) => api.post(`/schedules/${id}/set-default`),
+};
+
+// Mailboxes (per-workspace verified senders + AWS credentials)
+export const mailboxesApi = {
+  // AWS credentials
+  getAwsSettings: () => api.get('/mailboxes/aws-settings'),
+  saveAwsSettings: (data: { access_key_id: string; secret_access_key: string; region?: string }) =>
+    api.post('/mailboxes/aws-settings', data),
+  refreshQuota: () => api.post('/mailboxes/aws-settings/refresh-quota'),
+  deleteAwsSettings: () => api.delete('/mailboxes/aws-settings'),
+  // Mailboxes
+  list: () => api.get('/mailboxes'),
+  get: (id: string) => api.get(`/mailboxes/${id}`),
+  create: (data: any) => api.post('/mailboxes', data),
+  update: (id: string, data: any) => api.put(`/mailboxes/${id}`, data),
+  delete: (id: string) => api.delete(`/mailboxes/${id}`),
+  setDefault: (id: string) => api.post(`/mailboxes/${id}/set-default`),
+  checkVerification: (id: string) => api.post(`/mailboxes/${id}/check-verification`),
+  resendVerification: (id: string) => api.post(`/mailboxes/${id}/resend-verification`),
 };
 
 // Templates
@@ -106,4 +148,48 @@ export const analyticsApi = {
   timeline: (days?: number) => api.get('/analytics/timeline', { params: { days } }),
   toneBreakdown: () => api.get('/analytics/tone-breakdown'),
   replies: (limit?: number) => api.get('/analytics/replies', { params: { limit } }),
+};
+
+// Tasks
+export const tasksApi = {
+  list: (params?: Record<string, any>) => api.get('/tasks', { params }),
+  get: (id: string) => api.get(`/tasks/${id}`),
+  create: (data: any) => api.post('/tasks', data),
+  update: (id: string, data: any) => api.put(`/tasks/${id}`, data),
+  complete: (id: string, data: { outcome?: string; notes?: string }) => api.post(`/tasks/${id}/complete`, data),
+  skip: (id: string, reason?: string) => api.post(`/tasks/${id}/skip`, { reason }),
+  delete: (id: string) => api.delete(`/tasks/${id}`),
+  summary: () => api.get('/tasks/stats/summary'),
+};
+
+// Snippets
+export const snippetsApi = {
+  list: (category?: string) => api.get('/snippets', { params: { category } }),
+  get: (id: string) => api.get(`/snippets/${id}`),
+  create: (data: any) => api.post('/snippets', data),
+  update: (id: string, data: any) => api.put(`/snippets/${id}`, data),
+  delete: (id: string) => api.delete(`/snippets/${id}`),
+};
+
+// Sequence templates library
+export const sequenceTemplatesApi = {
+  library: (category?: string) => api.get('/sequence-templates/library', { params: { category } }),
+  get: (id: string) => api.get(`/sequence-templates/library/${id}`),
+  instantiate: (id: string, name?: string) => api.post(`/sequence-templates/library/${id}/instantiate`, { name }),
+  duplicateSequence: (id: string, name?: string) => api.post(`/sequence-templates/sequences/${id}/duplicate`, { name }),
+};
+
+// A/B variants
+export const abVariantsApi = {
+  listForStep: (stepId: string) => api.get(`/ab-variants/step/${stepId}`),
+  create: (stepId: string, data: any) => api.post(`/ab-variants/step/${stepId}`, data),
+  update: (variantId: string, data: any) => api.put(`/ab-variants/${variantId}`, data),
+  declareWinner: (variantId: string) => api.post(`/ab-variants/${variantId}/declare-winner`),
+  delete: (variantId: string) => api.delete(`/ab-variants/${variantId}`),
+};
+
+// Activity
+export const activityApi = {
+  list: (params?: Record<string, any>) => api.get('/activity', { params }),
+  forContact: (contactId: string, limit?: number) => api.get(`/activity/contact/${contactId}`, { params: { limit } }),
 };

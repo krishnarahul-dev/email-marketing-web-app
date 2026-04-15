@@ -1,8 +1,8 @@
-import { Resend } from 'resend';
+import { sendViaSES } from './sesService';
+import { reserveMailbox, releaseMailboxSlot, MailboxRow } from './mailboxService';
 import { config } from '../config';
-import { SendEmailParams } from '../types';
 
-// Token-bucket rate limiter
+// Token-bucket rate limiter (workspace-scoped via SES MaxSendRate)
 class RateLimiter {
   private tokens: number;
   private maxTokens: number;
@@ -36,46 +36,67 @@ class RateLimiter {
 
 const rateLimiter = new RateLimiter(config.email.rateLimitPerSecond);
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-export async function sendEmail(params: SendEmailParams): Promise<string> {
-  await rateLimiter.acquire();
-
-  const response = await resend.emails.send({
-    from: params.fromName ? `${params.fromName} <${params.from}>` : params.from,
-    to: [params.to],
-    subject: params.subject,
-    html: params.htmlBody,
-    text: params.textBody,
-    replyTo: params.replyTo ? [params.replyTo] : undefined,
-    headers: {
-      ...(params.configurationSet
-        ? { 'X-Configuration-Set': params.configurationSet }
-        : {}),
-      ...Object.fromEntries(
-        Object.entries(params.tags || {}).map(([key, value]) => [
-          `X-Tag-${key}`,
-          String(value),
-        ])
-      ),
-    },
-  });
-
-  if (response.error) {
-    throw new Error(response.error.message || 'Resend send failed');
-  }
-
-  if (!response.data?.id) {
-    throw new Error('Resend did not return a messageId');
-  }
-
-  return response.data.id;
+export interface SendEmailParams {
+  workspaceId: string;
+  to: string;
+  subject: string;
+  htmlBody: string;
+  textBody?: string;
+  // Optional: pin the send to a specific mailbox (sequence-level override)
+  preferredMailboxId?: string | null;
+  replyTo?: string;
+  configurationSet?: string;
+  tags?: Record<string, string>;
 }
 
+export interface SendEmailResult {
+  messageId: string;
+  mailboxId: string;
+  fromEmail: string;
+}
+
+/**
+ * Send an email using a round-robin selected mailbox (or a preferred one).
+ * Returns the SES message ID and the mailbox used.
+ */
+export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
+  await rateLimiter.acquire();
+
+  const mailbox = await reserveMailbox(params.workspaceId, params.preferredMailboxId);
+  if (!mailbox) {
+    throw new Error(
+      'NO_MAILBOX_CAPACITY: No verified mailboxes have remaining daily send capacity. Add another mailbox or wait until tomorrow.'
+    );
+  }
+
+  try {
+    const messageId = await sendViaSES({
+      workspaceId: params.workspaceId,
+      from: mailbox.from_email,
+      fromName: mailbox.from_name || undefined,
+      to: params.to,
+      subject: params.subject,
+      htmlBody: appendSignatureIfMissing(params.htmlBody, mailbox),
+      textBody: params.textBody,
+      replyTo: params.replyTo || mailbox.reply_to_email || undefined,
+      configurationSet: params.configurationSet,
+    });
+
+    return { messageId, mailboxId: mailbox.id, fromEmail: mailbox.from_email };
+  } catch (err: any) {
+    // Roll back the count reservation on failure
+    await releaseMailboxSlot(mailbox.id);
+    throw err;
+  }
+}
+
+/**
+ * Send with retry — exponential backoff between attempts.
+ */
 export async function sendEmailWithRetry(
   params: SendEmailParams,
   maxRetries: number = config.email.retryAttempts
-): Promise<string> {
+): Promise<SendEmailResult> {
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -83,6 +104,17 @@ export async function sendEmailWithRetry(
       return await sendEmail(params);
     } catch (error: any) {
       lastError = error;
+
+      // Don't retry on configuration errors — they won't fix themselves
+      const msg = (error.message || '').toString();
+      if (
+        msg.includes('NO_MAILBOX_CAPACITY') ||
+        msg.includes('not configured') ||
+        msg.includes('not verified') ||
+        msg.includes('credentials')
+      ) {
+        throw error;
+      }
 
       if (attempt < maxRetries) {
         const delay = config.email.retryDelay * Math.pow(2, attempt);
@@ -96,4 +128,14 @@ export async function sendEmailWithRetry(
   }
 
   throw lastError || new Error('Failed to send email after retries');
+}
+
+/**
+ * Append the mailbox's signature to the HTML body if there's no existing signature marker.
+ */
+function appendSignatureIfMissing(html: string, mailbox: MailboxRow): string {
+  if (!mailbox.signature_html) return html;
+  // Skip if signature is already present (look for common markers)
+  if (html.includes('<!--signature-->') || html.includes('class="signature"')) return html;
+  return `${html}<!--signature--><div class="signature">${mailbox.signature_html}</div>`;
 }

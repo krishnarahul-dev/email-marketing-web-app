@@ -13,6 +13,7 @@ export default function SequencesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [showAddStep, setShowAddStep] = useState(false);
   const [seqDetail, setSeqDetail] = useState<Sequence | null>(null);
+  const navigate = useNavigate();
 
   const fetchSequences = useCallback(async () => {
     setLoading(true);
@@ -114,8 +115,8 @@ export default function SequencesPage() {
           ) : sequences.map((s) => (
             <button
               key={s.id}
-              onClick={() => loadSequenceDetail(s.id)}
-              className={`card w-full text-left p-4 transition-all ${activeSeq === s.id ? 'ring-2 ring-brand-500 border-brand-200' : 'hover:border-surface-300'}`}
+              onClick={() => navigate(`/sequences/${s.id}`)}
+              className="card w-full text-left p-4 transition-all hover:border-surface-300 hover:shadow-md"
             >
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-semibold text-sm truncate flex-1">{s.name}</h3>

@@ -38,14 +38,14 @@ export const config = {
   jwt: {
     secret: requireEnv('JWT_SECRET'),
     expiresIn: optionalEnv('JWT_EXPIRES_IN', '7d'),
-    unsubscribeSecret: requireEnv('UNSUBSCRIBE_SECRET'),
+    unsubscribeSecret: optionalEnv('UNSUBSCRIBE_SECRET', process.env.JWT_SECRET || 'fallback-unsub-secret'),
   },
 
   ses: {
     region: optionalEnv('SES_REGION', 'us-east-1'),
-    accessKeyId: requireEnv('SES_ACCESS_KEY_ID'),
-    secretAccessKey: requireEnv('SES_SECRET_ACCESS_KEY'),
-    configurationSet: optionalEnv('SES_CONFIGURATION_SET', 'email-tool-tracking'),
+    accessKeyId: optionalEnv('SES_ACCESS_KEY_ID', ''),
+    secretAccessKey: optionalEnv('SES_SECRET_ACCESS_KEY', ''),
+    configurationSet: optionalEnv('SES_CONFIGURATION_SET', ''),
   },
 
   postmark: {
@@ -53,7 +53,7 @@ export const config = {
   },
 
   claude: {
-    apiKey: requireEnv('CLAUDE_API_KEY'),
+    apiKey: optionalEnv('CLAUDE_API_KEY', ''),
     model: optionalEnv('CLAUDE_MODEL', 'claude-sonnet-4-20250514'),
   },
 

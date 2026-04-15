@@ -8,75 +8,95 @@ export function startEmailSendWorker(): Worker {
   const worker = new Worker<EmailSendJobData>(
     'email-send',
     async (job: Job<EmailSendJobData>) => {
-      const { emailLogId, to, from, fromName, subject, htmlBody, textBody, configurationSet } = job.data;
+      const { emailLogId, to, subject, htmlBody, textBody, configurationSet, workspaceId } = job.data;
 
       try {
-        // Check suppression before sending
+        // Check suppression list
         const suppressed = await query(
           'SELECT id FROM suppression_list WHERE email = $1 AND workspace_id = $2',
-          [to, job.data.workspaceId]
+          [to, workspaceId]
         );
         if (suppressed.rows.length > 0) {
-          await query("UPDATE email_logs SET status = 'failed', error_message = 'Suppressed' WHERE id = $1", [emailLogId]);
+          await query(
+            "UPDATE email_logs SET status = 'failed', error_message = 'Recipient on suppression list' WHERE id = $1",
+            [emailLogId]
+          );
           return { status: 'suppressed' };
         }
 
-        // Check daily send limit
-        const workspace = await query('SELECT daily_send_limit FROM workspaces WHERE id = $1', [job.data.workspaceId]);
-        if (workspace.rows.length > 0) {
-          const todaySent = await query(
-            "SELECT COUNT(*) FROM email_logs WHERE workspace_id = $1 AND sent_at >= CURRENT_DATE AND status != 'failed'",
-            [job.data.workspaceId]
+        // Look up sequence's preferred mailbox if applicable
+        let preferredMailboxId: string | null = null;
+        const logRow = await query<{ sequence_id: string | null; campaign_id: string | null }>(
+          'SELECT sequence_id, campaign_id FROM email_logs WHERE id = $1',
+          [emailLogId]
+        );
+        if (logRow.rows[0]?.sequence_id) {
+          const seqRow = await query<{ preferred_mailbox_id: string | null }>(
+            'SELECT preferred_mailbox_id FROM sequences WHERE id = $1',
+            [logRow.rows[0].sequence_id]
           );
-          if (parseInt(todaySent.rows[0].count) >= workspace.rows[0].daily_send_limit) {
-            // Reschedule for tomorrow
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(9, 0, 0, 0);
-            const delay = tomorrow.getTime() - Date.now();
-            throw new Error(`RATE_LIMIT:Daily send limit reached. Rescheduling.`);
-          }
+          preferredMailboxId = seqRow.rows[0]?.preferred_mailbox_id || null;
         }
 
-        const messageId = await sendEmailWithRetry({
+        // Send via mailbox rotation
+        const result = await sendEmailWithRetry({
+          workspaceId,
           to,
-          from,
-          fromName,
           subject,
           htmlBody,
           textBody,
+          preferredMailboxId,
           configurationSet,
-          tags: { emailLogId, workspaceId: job.data.workspaceId },
+          tags: { emailLogId, workspaceId },
         });
 
+        // Update email log with success + which mailbox sent it
         await query(
-          "UPDATE email_logs SET status = 'sent', ses_message_id = $1, sent_at = NOW() WHERE id = $2",
-          [messageId, emailLogId]
+          `UPDATE email_logs SET
+             status = 'sent',
+             ses_message_id = $1,
+             sent_at = NOW(),
+             mailbox_id = $2,
+             from_email = $3
+           WHERE id = $4`,
+          [result.messageId, result.mailboxId, result.fromEmail, emailLogId]
         );
 
+        // Record the event
         await query(
           `INSERT INTO email_events (email_log_id, workspace_id, event_type, event_data)
            VALUES ($1, $2, 'sent', $3)`,
-          [emailLogId, job.data.workspaceId, JSON.stringify({ ses_message_id: messageId })]
+          [emailLogId, workspaceId, JSON.stringify({ ses_message_id: result.messageId, mailbox_id: result.mailboxId })]
         );
 
-        // Update campaign counter
-        const log = await query('SELECT campaign_id FROM email_logs WHERE id = $1', [emailLogId]);
-        if (log.rows[0]?.campaign_id) {
+        // Update campaign counter if applicable
+        if (logRow.rows[0]?.campaign_id) {
           await query(
             'UPDATE campaigns SET sent_count = sent_count + 1 WHERE id = $1',
-            [log.rows[0].campaign_id]
+            [logRow.rows[0].campaign_id]
           );
         }
 
-        return { status: 'sent', messageId };
+        return { status: 'sent', messageId: result.messageId, mailboxId: result.mailboxId };
       } catch (error: any) {
-        console.error(`Email send failed for ${emailLogId}:`, error.message);
+        const msg = (error.message || 'Unknown error').toString();
+        console.error(`Email send failed for ${emailLogId}:`, msg);
 
-        if (!error.message.startsWith('RATE_LIMIT:')) {
+        // NO_MAILBOX_CAPACITY: requeue for an hour later instead of failing
+        if (msg.startsWith('NO_MAILBOX_CAPACITY')) {
+          await query(
+            "UPDATE email_logs SET error_message = $1 WHERE id = $2",
+            ['Awaiting mailbox capacity (rescheduled)', emailLogId]
+          );
+          throw new Error('NO_MAILBOX_CAPACITY:Reschedule');
+        }
+
+        // Don't mark as 'failed' for transient errors, let BullMQ retry handle it
+        const isPermanent = !msg.includes('Throttling') && !msg.includes('TooManyRequests') && !msg.includes('TemporaryFailure');
+        if (isPermanent) {
           await query(
             "UPDATE email_logs SET status = 'failed', error_message = $1 WHERE id = $2",
-            [error.message.substring(0, 500), emailLogId]
+            [msg.substring(0, 500), emailLogId]
           );
         }
 
